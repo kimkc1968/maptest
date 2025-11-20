@@ -48,10 +48,11 @@
         .border-normal { border-color: #22c55e; }
         .border-quiet { border-color: #9ca3af; }
 
-        /* Bottom Sheet Transition */
+        /* Bottom Sheet Transition - Modified to allow JS control */
         .bottom-sheet {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            /* transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); Removed default transition for drag */
             box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            touch-action: none; /* Important for dragging */
         }
         
         .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -106,24 +107,24 @@
     <!-- Map Container -->
     <div id="map" class="w-full h-full z-0 bg-gray-200"></div>
 
-    <!-- Recenter Button -->
-    <div class="absolute right-4 bottom-[38vh] z-10">
+    <!-- Recenter Button (Dynamic Position) -->
+    <div id="recenter-btn" class="absolute right-4 z-10 transition-all duration-100" style="bottom: 38vh;">
         <button onclick="resetMap()" class="bg-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-gray-700 active:scale-90 transition-transform border border-gray-100">
             <span class="material-symbols-outlined">gps_fixed</span>
         </button>
     </div>
 
-    <!-- Bottom Sheet -->
-    <div id="bottom-sheet" class="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-[32px] h-[35vh] flex flex-col bottom-sheet translate-y-0">
-        <!-- Handle -->
-        <div class="w-full flex justify-center pt-3 pb-2 cursor-pointer" onclick="toggleSheet()">
-            <div class="w-12 h-1.5 bg-gray-200 rounded-full"></div>
+    <!-- Bottom Sheet (Resizable) -->
+    <div id="bottom-sheet" class="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-[32px] flex flex-col bottom-sheet" style="height: 35vh;">
+        <!-- Handle (Draggable Area) -->
+        <div id="sheet-handle" class="w-full flex justify-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full"></div>
         </div>
 
         <!-- Content Area -->
         <div id="sheet-content" class="flex-1 px-6 overflow-y-auto scrollbar-hide pb-6">
             
-            <!-- Default View: Missions (Renewed) -->
+            <!-- Default View: Missions (Overview) -->
             <div id="view-overview" class="h-full flex flex-col">
                 <div class="flex justify-between items-end mb-4">
                     <div>
@@ -138,21 +139,21 @@
                 
                 <!-- Missions List -->
                 <div class="space-y-3 mb-4 overflow-y-auto">
-                    <!-- Mission 1: Progress -->
-                    <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                    <!-- Mission 1: Progress (Clickable) -->
+                    <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100 cursor-pointer active:bg-gray-100 transition-colors" onclick="openMissionDetail()">
                         <div class="flex justify-between items-center mb-2">
                             <div class="flex items-center gap-2">
                                 <span class="bg-blue-100 text-blue-600 text-[10px] font-bold px-1.5 py-0.5 rounded">DAILY</span>
-                                <span class="font-bold text-gray-900 text-sm">피크타임 5건 배달</span>
+                                <span class="font-bold text-gray-900 text-sm">6~13건 배달 시</span>
                             </div>
-                            <span class="text-blue-600 font-bold text-sm">+5,000원</span>
+                            <span class="text-blue-600 font-bold text-sm">+45,000원</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2 mb-1.5">
-                            <div class="bg-blue-600 h-2 rounded-full" style="width: 40%"></div>
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: 100%"></div>
                         </div>
                         <div class="flex justify-between text-[10px] text-gray-400">
-                            <span>2건 완료</span>
-                            <span>목표 5건</span>
+                            <span class="text-blue-600 font-bold">미션 달성 완료</span>
+                            <span>목표 13건</span>
                         </div>
                     </div>
 
@@ -167,12 +168,117 @@
                         </div>
                         <span class="text-red-500 font-bold text-sm">+500원/건</span>
                     </div>
+                    
+                    <!-- Extra content for scrolling demo -->
+                     <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex justify-between items-center">
+                        <div>
+                            <div class="flex items-center gap-2 mb-0.5">
+                                <span class="bg-green-100 text-green-600 text-[10px] font-bold px-1.5 py-0.5 rounded">NEW</span>
+                                <span class="font-bold text-gray-900 text-sm">신규 지역 오픈</span>
+                            </div>
+                            <p class="text-xs text-gray-500">서초구 일부 지역 오픈 기념</p>
+                        </div>
+                        <span class="text-gray-900 font-bold text-sm">확인하기</span>
+                    </div>
                 </div>
 
                 <button class="w-full bg-blue-600 text-white font-bold text-lg py-4 rounded-2xl shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 mt-auto">
                     <span class="material-symbols-outlined">two_wheeler</span>
                     배달 시작하기
                 </button>
+            </div>
+
+            <!-- New View: Mission Detail -->
+            <div id="view-mission-detail" class="hidden h-full flex flex-col relative">
+                <!-- Back Button Header -->
+                <div class="absolute top-0 left-0 z-10">
+                    <button onclick="closeMissionDetail()" class="p-2 -ml-2 text-gray-500 active:scale-95">
+                        <span class="material-symbols-outlined">arrow_back</span>
+                    </button>
+                </div>
+                
+                <!-- Content Scroll Area -->
+                <div class="pt-8 pb-4 overflow-y-auto scrollbar-hide h-full">
+                    <!-- Header Section -->
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <span class="bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded mb-1 inline-block">상시 미션</span>
+                            <h2 class="text-xl font-bold text-gray-900">6~13건 배달 시</h2>
+                        </div>
+                        <div class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white shadow-md shadow-green-200">
+                            <span class="material-symbols-outlined">check</span>
+                        </div>
+                    </div>
+
+                    <!-- Success Message -->
+                    <div class="text-center mb-8">
+                        <h3 class="text-green-600 font-bold text-lg mb-1">미션 성공</h3>
+                        <p class="text-gray-600 text-sm mb-6">4만5천원 보너스 획득 완료!</p>
+                        <div class="w-20 h-20 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-4 relative ring-4 ring-yellow-100/50">
+                            <span class="material-symbols-outlined text-5xl text-yellow-400 drop-shadow-sm">monetization_on</span>
+                            <span class="absolute -top-1 right-0 text-yellow-300 text-xs">✦</span>
+                            <span class="absolute top-10 -left-3 text-yellow-300 text-xs">✦</span>
+                            <span class="absolute bottom-1 right-0 text-yellow-300 text-[10px]">✦</span>
+                        </div>
+                    </div>
+
+                    <!-- Tier List -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-end mb-2">
+                            <h3 class="text-lg font-bold text-gray-900">최대 4만5천원 보너스</h3>
+                            <span class="text-[10px] text-gray-400 text-right leading-tight">미션 기간 종료<br>후 정산</span>
+                        </div>
+                        
+                        <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-4">
+                            <!-- Tier 1 -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-gray-400 text-base">check_circle</span>
+                                    <span class="text-sm text-gray-500">6건 달성 시</span>
+                                </div>
+                                <span class="text-sm font-bold text-gray-500">총 10,000원</span>
+                            </div>
+                            <!-- Tier 2 -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-gray-400 text-base">check_circle</span>
+                                    <span class="text-sm text-gray-500">10건 달성 시</span>
+                                </div>
+                                <span class="text-sm font-bold text-gray-500">총 25,000원</span>
+                            </div>
+                            <!-- Tier 3 (Active/Achieved) -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-green-600 text-base">check_circle</span> <!-- Active Icon -->
+                                    <span class="text-sm font-bold text-gray-900">13건 달성 시</span>
+                                </div>
+                                <span class="text-sm font-bold text-green-600">총 45,000원</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full h-px bg-gray-100 my-6"></div>
+
+                    <!-- Info List -->
+                    <div class="space-y-4 text-gray-600 text-sm">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-gray-400 text-lg">calendar_today</span>
+                            <span class="text-xs text-gray-500">10.23 (목) 00:00 ~ 23:59</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-gray-400 text-lg">schedule</span>
+                            <span class="text-xs text-orange-500 font-bold">17:00 ~ 20:00동안</span>
+                        </div>
+                         <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-gray-400 text-lg">person</span>
+                            <span class="text-xs text-gray-500">모든 배달파트너</span>
+                        </div>
+                         <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-gray-400 text-lg">location_on</span>
+                            <span class="text-xs text-gray-500">모든 지역</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Detail View: Selected Dong -->
@@ -233,7 +339,7 @@
             "name": "dddd22222",
             "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
             "features": [
-                { "type": "Feature", "properties": { "EMD_CD": "11650106", "EMD_ENG_NM": "Jamwon-dong", "EMD_KOR_NM": "잠원동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.009, 37.526 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.524 ], [ 127.011, 37.524 ], [ 127.011, 37.524 ], [ 127.012, 37.524 ], [ 127.012, 37.523 ], [ 127.012, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.017, 37.523 ], [ 127.018, 37.522 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.019, 37.519 ], [ 127.019, 37.519 ], [ 127.019, 37.518 ], [ 127.019, 37.518 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.02, 37.516 ], [ 127.021, 37.513 ], [ 127.021, 37.511 ], [ 127.021, 37.511 ], [ 127.016, 37.51 ], [ 127.009, 37.507 ], [ 127.001, 37.505 ], [ 127.0, 37.507 ], [ 127.0, 37.507 ], [ 126.999, 37.51 ], [ 126.998, 37.511 ], [ 126.998, 37.512 ], [ 127.0, 37.513 ], [ 127.0, 37.513 ], [ 127.001, 37.514 ], [ 127.001, 37.514 ], [ 126.998, 37.516 ], [ 126.997, 37.517 ], [ 126.998, 37.517 ], [ 126.998, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.002, 37.52 ], [ 127.002, 37.52 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.005, 37.522 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.007, 37.524 ], [ 127.007, 37.524 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ] ] ] ] } },
+                { "type": "Feature", "properties": { "EMD_CD": "11650106", "EMD_ENG_NM": "Jamwon-dong", "EMD_KOR_NM": "잠원동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.009, 37.526 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.524 ], [ 127.011, 37.524 ], [ 127.011, 37.524 ], [ 127.012, 37.524 ], [ 127.012, 37.523 ], [ 127.012, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.017, 37.523 ], [ 127.018, 37.522 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.019, 37.519 ], [ 127.019, 37.519 ], [ 127.019, 37.518 ], [ 127.019, 37.518 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.02, 37.516 ], [ 127.021, 37.513 ], [ 127.021, 37.511 ], [ 127.021, 37.511 ], [ 127.016, 37.51 ], [ 127.009, 37.507 ], [ 127.001, 37.505 ], [ 127.0, 37.507 ], [ 127.0, 37.507 ], [ 126.999, 37.51 ], [ 126.998, 37.511 ], [ 126.998, 37.512 ], [ 127.0, 37.513 ], [ 127.0, 37.513 ], [ 127.001, 37.514 ], [ 127.001, 37.514 ], [ 126.998, 37.516 ], [ 126.997, 37.517 ], [ 126.998, 37.517 ], [ 126.998, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.002, 37.52 ], [ 127.002, 37.52 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.005, 37.522 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.007, 37.524 ], [ 127.007, 37.524 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11650107", "EMD_ENG_NM": "Banpo-dong", "EMD_KOR_NM": "반포동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 126.992, 37.514 ], [ 126.993, 37.514 ], [ 126.994, 37.515 ], [ 126.995, 37.516 ], [ 126.996, 37.516 ], [ 126.996, 37.517 ], [ 126.997, 37.517 ], [ 126.998, 37.516 ], [ 127.001, 37.514 ], [ 127.0, 37.513 ], [ 126.998, 37.512 ], [ 126.998, 37.511 ], [ 126.999, 37.51 ], [ 127.0, 37.507 ], [ 127.001, 37.505 ], [ 127.009, 37.507 ], [ 127.016, 37.51 ], [ 127.021, 37.511 ], [ 127.024, 37.504 ], [ 127.023, 37.504 ], [ 127.021, 37.503 ], [ 127.02, 37.503 ], [ 127.019, 37.503 ], [ 127.02, 37.5 ], [ 127.019, 37.5 ], [ 127.017, 37.501 ], [ 127.016, 37.502 ], [ 127.013, 37.5 ], [ 127.012, 37.5 ], [ 127.012, 37.499 ], [ 127.011, 37.499 ], [ 127.01, 37.499 ], [ 127.009, 37.499 ], [ 127.009, 37.498 ], [ 127.01, 37.498 ], [ 127.011, 37.498 ], [ 127.011, 37.497 ], [ 127.01, 37.497 ], [ 127.009, 37.497 ], [ 127.008, 37.497 ], [ 127.007, 37.497 ], [ 127.006, 37.497 ], [ 127.005, 37.497 ], [ 127.004, 37.496 ], [ 127.004, 37.495 ], [ 127.003, 37.495 ], [ 127.003, 37.494 ], [ 127.002, 37.493 ], [ 127.002, 37.492 ], [ 127.001, 37.492 ], [ 127.0, 37.492 ], [ 127.0, 37.493 ], [ 126.999, 37.493 ], [ 126.998, 37.493 ], [ 126.998, 37.494 ], [ 126.997, 37.494 ], [ 126.996, 37.494 ], [ 126.995, 37.494 ], [ 126.995, 37.495 ], [ 126.995, 37.496 ], [ 126.994, 37.496 ], [ 126.993, 37.496 ], [ 126.993, 37.497 ], [ 126.992, 37.497 ], [ 126.991, 37.497 ], [ 126.991, 37.498 ], [ 126.99, 37.498 ], [ 126.989, 37.498 ], [ 126.989, 37.499 ], [ 126.988, 37.499 ], [ 126.987, 37.499 ], [ 126.986, 37.499 ], [ 126.986, 37.5 ], [ 126.985, 37.5 ], [ 126.985, 37.501 ], [ 126.984, 37.501 ], [ 126.983, 37.501 ], [ 126.983, 37.502 ], [ 126.982, 37.502 ], [ 126.981, 37.502 ], [ 126.981, 37.503 ], [ 126.98, 37.503 ], [ 126.98, 37.504 ], [ 126.98, 37.505 ], [ 126.98, 37.506 ], [ 126.98, 37.507 ], [ 126.981, 37.507 ], [ 126.982, 37.507 ], [ 126.983, 37.507 ], [ 126.984, 37.507 ], [ 126.985, 37.507 ], [ 126.986, 37.507 ], [ 126.986, 37.508 ], [ 126.987, 37.508 ], [ 126.987, 37.509 ], [ 126.988, 37.51 ], [ 126.989, 37.511 ], [ 126.99, 37.512 ], [ 126.99, 37.513 ], [ 126.991, 37.513 ], [ 126.992, 37.514 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11650108", "EMD_ENG_NM": "Seocho-dong", "EMD_KOR_NM": "서초동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.028, 37.498 ], [ 127.032, 37.49 ], [ 127.034, 37.484 ], [ 127.034, 37.483 ], [ 127.034, 37.482 ], [ 127.033, 37.482 ], [ 127.033, 37.481 ], [ 127.032, 37.481 ], [ 127.031, 37.481 ], [ 127.031, 37.48 ], [ 127.03, 37.48 ], [ 127.029, 37.481 ], [ 127.028, 37.481 ], [ 127.027, 37.481 ], [ 127.026, 37.481 ], [ 127.025, 37.481 ], [ 127.024, 37.481 ], [ 127.024, 37.48 ], [ 127.023, 37.479 ], [ 127.023, 37.478 ], [ 127.022, 37.478 ], [ 127.022, 37.477 ], [ 127.021, 37.477 ], [ 127.02, 37.477 ], [ 127.019, 37.477 ], [ 127.018, 37.477 ], [ 127.017, 37.476 ], [ 127.016, 37.476 ], [ 127.016, 37.475 ], [ 127.015, 37.475 ], [ 127.015, 37.474 ], [ 127.014, 37.473 ], [ 127.013, 37.473 ], [ 127.012, 37.473 ], [ 127.011, 37.473 ], [ 127.01, 37.473 ], [ 127.01, 37.474 ], [ 127.009, 37.474 ], [ 127.009, 37.475 ], [ 127.008, 37.476 ], [ 127.008, 37.477 ], [ 127.007, 37.477 ], [ 127.007, 37.478 ], [ 127.006, 37.48 ], [ 127.005, 37.483 ], [ 127.004, 37.483 ], [ 127.002, 37.482 ], [ 127.002, 37.483 ], [ 127.001, 37.483 ], [ 127.001, 37.484 ], [ 127.001, 37.485 ], [ 127.0, 37.485 ], [ 127.0, 37.486 ], [ 127.001, 37.486 ], [ 127.001, 37.487 ], [ 127.001, 37.488 ], [ 127.0, 37.489 ], [ 127.0, 37.49 ], [ 127.0, 37.491 ], [ 127.0, 37.492 ], [ 127.001, 37.492 ], [ 127.002, 37.492 ], [ 127.002, 37.493 ], [ 127.003, 37.494 ], [ 127.003, 37.495 ], [ 127.004, 37.495 ], [ 127.004, 37.496 ], [ 127.005, 37.497 ], [ 127.006, 37.497 ], [ 127.007, 37.497 ], [ 127.008, 37.497 ], [ 127.009, 37.497 ], [ 127.01, 37.497 ], [ 127.011, 37.497 ], [ 127.011, 37.498 ], [ 127.01, 37.498 ], [ 127.009, 37.498 ], [ 127.009, 37.499 ], [ 127.01, 37.499 ], [ 127.011, 37.499 ], [ 127.012, 37.499 ], [ 127.012, 37.5 ], [ 127.013, 37.5 ], [ 127.016, 37.502 ], [ 127.017, 37.501 ], [ 127.019, 37.5 ], [ 127.02, 37.5 ], [ 127.019, 37.503 ], [ 127.02, 37.503 ], [ 127.021, 37.503 ], [ 127.023, 37.504 ], [ 127.024, 37.504 ], [ 127.028, 37.498 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11680101", "EMD_ENG_NM": "Yeoksam-dong", "EMD_KOR_NM": "역삼동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.049, 37.504 ], [ 127.05, 37.503 ], [ 127.05, 37.501 ], [ 127.051, 37.501 ], [ 127.051, 37.5 ], [ 127.052, 37.499 ], [ 127.052, 37.497 ], [ 127.053, 37.496 ], [ 127.052, 37.496 ], [ 127.051, 37.496 ], [ 127.048, 37.495 ], [ 127.047, 37.494 ], [ 127.046, 37.494 ], [ 127.044, 37.493 ], [ 127.041, 37.493 ], [ 127.041, 37.492 ], [ 127.039, 37.492 ], [ 127.037, 37.491 ], [ 127.035, 37.491 ], [ 127.035, 37.49 ], [ 127.034, 37.49 ], [ 127.033, 37.49 ], [ 127.032, 37.49 ], [ 127.028, 37.498 ], [ 127.024, 37.504 ], [ 127.025, 37.505 ], [ 127.026, 37.505 ], [ 127.028, 37.505 ], [ 127.028, 37.506 ], [ 127.03, 37.506 ], [ 127.032, 37.507 ], [ 127.034, 37.507 ], [ 127.035, 37.508 ], [ 127.037, 37.508 ], [ 127.038, 37.509 ], [ 127.039, 37.509 ], [ 127.041, 37.509 ], [ 127.042, 37.51 ], [ 127.044, 37.51 ], [ 127.044, 37.509 ], [ 127.045, 37.509 ], [ 127.045, 37.508 ], [ 127.046, 37.508 ], [ 127.047, 37.507 ], [ 127.048, 37.507 ], [ 127.048, 37.506 ], [ 127.049, 37.505 ], [ 127.049, 37.504 ] ] ] ] } },
@@ -257,6 +363,24 @@
         let map;
         let mapMarkers = []; 
         let DONGS = [];
+
+        function loadKakaoMaps() {
+            const script = document.createElement('script');
+            // Use HTTPS protocol explicitly and autoload=false
+            script.src = "https://dapi.kakao.com/v2/maps/sdk.js?appkey=ffb46c6e52f67ba3c00997e78bc3590a&autoload=false&libraries=services";
+            script.async = true;
+            script.onload = () => {
+                // Kakao SDK loaded, now initialize map
+                kakao.maps.load(() => {
+                    initMap();
+                });
+            };
+            script.onerror = () => {
+                console.error("Failed to load Kakao Maps SDK");
+                // Optional: Show error UI to user
+            };
+            document.head.appendChild(script);
+        }
 
         function initMap() {
             var container = document.getElementById('map');
@@ -310,6 +434,7 @@
             }
 
             startLiveUpdates();
+            initSheetResize();
         }
 
         function createDongElement(dong) {
@@ -425,6 +550,7 @@
 
             // Show Detail View
             document.getElementById('view-overview').classList.add('hidden');
+            document.getElementById('view-mission-detail').classList.add('hidden'); // Close Mission Detail if open
             document.getElementById('view-detail').classList.remove('hidden');
         }
 
@@ -449,6 +575,16 @@
             map.setLevel(6);
         }
 
+        function openMissionDetail() {
+            document.getElementById('view-overview').classList.add('hidden');
+            document.getElementById('view-mission-detail').classList.remove('hidden');
+        }
+
+        function closeMissionDetail() {
+            document.getElementById('view-mission-detail').classList.add('hidden');
+            document.getElementById('view-overview').classList.remove('hidden');
+        }
+
         function resetMap() {
             if(DONGS.length > 0) {
                 let avgLat = 0, avgLng = 0;
@@ -457,6 +593,72 @@
             }
             map.setLevel(6);
             closeDetail();
+        }
+
+        function initSheetResize() {
+            const sheet = document.getElementById('bottom-sheet');
+            const handle = document.getElementById('sheet-handle');
+            const recenterBtn = document.getElementById('recenter-btn');
+            
+            let startY, startHeight;
+            let isDragging = false;
+
+            const onTouchStart = (e) => {
+                isDragging = true;
+                startY = e.touches ? e.touches[0].clientY : e.clientY;
+                startHeight = sheet.offsetHeight;
+                sheet.style.transition = 'none';
+                if (recenterBtn) recenterBtn.style.transition = 'none';
+            };
+
+            const onTouchMove = (e) => {
+                if (!isDragging) return;
+                const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+                const deltaY = startY - currentY;
+                const newHeight = startHeight + deltaY;
+
+                // Constraints (min 15vh, max 90vh)
+                const minHeight = window.innerHeight * 0.15;
+                const maxHeight = window.innerHeight * 0.9;
+
+                if (newHeight >= minHeight && newHeight <= maxHeight) {
+                    sheet.style.height = `${newHeight}px`;
+                    if (recenterBtn) recenterBtn.style.bottom = `${newHeight + 20}px`;
+                }
+            };
+
+            const onTouchEnd = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                sheet.style.transition = 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                if (recenterBtn) recenterBtn.style.transition = 'bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                
+                // Snap logic
+                const currentHeight = sheet.offsetHeight;
+                const thresholdSmall = window.innerHeight * 0.25;
+                const thresholdLarge = window.innerHeight * 0.75;
+                let targetHeight;
+
+                if (currentHeight < thresholdSmall) {
+                    targetHeight = window.innerHeight * 0.15; // Minimized
+                } else if (currentHeight > thresholdLarge) {
+                    targetHeight = window.innerHeight * 0.9; // Full
+                } else {
+                    targetHeight = window.innerHeight * 0.35; // Default
+                }
+                
+                sheet.style.height = `${targetHeight}px`;
+                if (recenterBtn) recenterBtn.style.bottom = `${targetHeight + 20}px`;
+            };
+
+            handle.addEventListener('touchstart', onTouchStart);
+            window.addEventListener('touchmove', onTouchMove, { passive: false });
+            window.addEventListener('touchend', onTouchEnd);
+            
+            // Mouse support for desktop testing
+            handle.addEventListener('mousedown', onTouchStart);
+            window.addEventListener('mousemove', onTouchMove);
+            window.addEventListener('mouseup', onTouchEnd);
         }
 
         function startLiveUpdates() {
@@ -507,10 +709,8 @@
             }, 2000);
         }
 
-        // Wait for Kakao Maps to load
-        kakao.maps.load(function() {
-            initMap();
-        });
+        // Initiate Dynamic Script Loading
+        loadKakaoMaps();
     </script>
 </body>
 </html>
