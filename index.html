@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Coupang Eats Rider - Gangnam District (Kakao)</title>
+    <title>Coupang Eats Rider - Gangnam District</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -48,24 +48,25 @@
         .border-normal { border-color: #22c55e; }
         .border-quiet { border-color: #9ca3af; }
 
-        /* Bottom Sheet Transition */
+        /* Bottom Sheet Transition - Modified to allow JS control */
         .bottom-sheet {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            /* transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); Removed default transition for drag */
             box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            touch-action: none; /* Important for dragging */
         }
         
         .scrollbar-hide::-webkit-scrollbar { display: none; }
 
         /* Pulse Animation for Very Busy zones */
         @keyframes soft-pulse {
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-            70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+            70% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
         }
         .pulse-active { animation: soft-pulse 2s infinite; }
         
-        /* Map Container Height Fix for Kakao */
-        #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 0; }
+        /* Custom Overlay Style Fix for Kakao Maps */
+        .customoverlay { position:relative; bottom:0px; }
     </style>
 </head>
 <body class="h-screen w-screen flex flex-col relative bg-gray-100">
@@ -74,9 +75,9 @@
     <div class="absolute top-0 left-0 right-0 z-20 pt-safe pb-2 px-4 bg-gradient-to-b from-white via-white/90 to-transparent pointer-events-none">
         <div class="pointer-events-auto mt-2 flex justify-between items-start">
             <div class="bg-white shadow-md rounded-full px-4 py-2 flex items-center gap-3 border border-gray-100 cursor-pointer active:bg-gray-50 transition-colors">
-                <span class="material-symbols-outlined text-yellow-900 bg-yellow-400 rounded-full p-0.5 text-[18px]">map</span>
+                <span class="material-symbols-outlined text-green-600">my_location</span>
                 <div class="flex flex-col">
-                    <span class="text-[10px] text-gray-400 leading-none mb-0.5">현재 중심 (카카오맵)</span>
+                    <span class="text-[10px] text-gray-400 leading-none mb-0.5">현재 중심</span>
                     <span class="text-sm font-bold text-gray-800">서울시 강남구</span>
                 </div>
                 <span class="material-symbols-outlined text-gray-400 text-sm">expand_more</span>
@@ -104,31 +105,26 @@
     </div>
 
     <!-- Map Container -->
-    <div id="map" class="bg-gray-200 flex items-center justify-center text-gray-500">
-        <div class="text-center p-4">
-            <p class="font-bold mb-2">지도가 보이지 않나요?</p>
-            <p class="text-sm">카카오 개발자 센터에서 발급받은 API 키를<br>코드 내 [YOUR_KAKAO_JS_KEY] 부분에 입력해주세요.</p>
-        </div>
-    </div>
+    <div id="map" class="w-full h-full z-0 bg-gray-200"></div>
 
-    <!-- Recenter Button -->
-    <div class="absolute right-4 bottom-[38vh] z-10">
+    <!-- Recenter Button (Dynamic Position) -->
+    <div id="recenter-btn" class="absolute right-4 z-10 transition-all duration-100" style="bottom: 38vh;">
         <button onclick="resetMap()" class="bg-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-gray-700 active:scale-90 transition-transform border border-gray-100">
             <span class="material-symbols-outlined">gps_fixed</span>
         </button>
     </div>
 
-    <!-- Bottom Sheet -->
-    <div id="bottom-sheet" class="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-[32px] h-[35vh] flex flex-col bottom-sheet translate-y-0">
-        <!-- Handle -->
-        <div class="w-full flex justify-center pt-3 pb-2 cursor-pointer" onclick="toggleSheet()">
-            <div class="w-12 h-1.5 bg-gray-200 rounded-full"></div>
+    <!-- Bottom Sheet (Resizable) -->
+    <div id="bottom-sheet" class="absolute bottom-0 left-0 right-0 z-30 bg-white rounded-t-[32px] flex flex-col bottom-sheet" style="height: 35vh;">
+        <!-- Handle (Draggable Area) -->
+        <div id="sheet-handle" class="w-full flex justify-center pt-4 pb-2 cursor-grab active:cursor-grabbing touch-none">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full"></div>
         </div>
 
         <!-- Content Area -->
         <div id="sheet-content" class="flex-1 px-6 overflow-y-auto scrollbar-hide pb-6">
             
-            <!-- Default View: Overview -->
+            <!-- Default View: Missions (Overview) -->
             <div id="view-overview" class="h-full flex flex-col">
                 <div class="flex justify-between items-end mb-4">
                     <div>
@@ -143,23 +139,25 @@
                 
                 <!-- Missions List -->
                 <div class="space-y-3 mb-4 overflow-y-auto">
-                    <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                    <!-- Mission 1: Progress (Clickable) -->
+                    <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100 cursor-pointer active:bg-gray-100 transition-colors" onclick="openMissionDetail()">
                         <div class="flex justify-between items-center mb-2">
                             <div class="flex items-center gap-2">
                                 <span class="bg-blue-100 text-blue-600 text-[10px] font-bold px-1.5 py-0.5 rounded">DAILY</span>
-                                <span class="font-bold text-gray-900 text-sm">피크타임 5건 배달</span>
+                                <span class="font-bold text-gray-900 text-sm">6~13건 배달 시</span>
                             </div>
-                            <span class="text-blue-600 font-bold text-sm">+5,000원</span>
+                            <span class="text-blue-600 font-bold text-sm">+45,000원</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2 mb-1.5">
-                            <div class="bg-blue-600 h-2 rounded-full" style="width: 40%"></div>
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: 100%"></div>
                         </div>
                         <div class="flex justify-between text-[10px] text-gray-400">
-                            <span>2건 완료</span>
-                            <span>목표 5건</span>
+                            <span class="text-blue-600 font-bold">미션 달성 완료</span>
+                            <span>목표 13건</span>
                         </div>
                     </div>
 
+                    <!-- Mission 2: Area Bonus -->
                     <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex justify-between items-center">
                         <div>
                             <div class="flex items-center gap-2 mb-0.5">
@@ -170,16 +168,121 @@
                         </div>
                         <span class="text-red-500 font-bold text-sm">+500원/건</span>
                     </div>
+                    
+                    <!-- Extra content for scrolling demo -->
+                     <div class="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex justify-between items-center">
+                        <div>
+                            <div class="flex items-center gap-2 mb-0.5">
+                                <span class="bg-green-100 text-green-600 text-[10px] font-bold px-1.5 py-0.5 rounded">NEW</span>
+                                <span class="font-bold text-gray-900 text-sm">신규 지역 오픈</span>
+                            </div>
+                            <p class="text-xs text-gray-500">서초구 일부 지역 오픈 기념</p>
+                        </div>
+                        <span class="text-gray-900 font-bold text-sm">확인하기</span>
+                    </div>
                 </div>
 
-                <button class="w-full bg-blue-600 text-white font-bold text-lg py-4 rounded-2xl shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform flex items-center justify-center gap-2 mt-auto">
-                    <span class="material-symbols-outlined">two_wheeler</span>
-                    배달 시작하기
-                </button>
+                <!-- Start Button Removed as requested -->
+            </div>
+
+            <!-- New View: Mission Detail -->
+            <div id="view-mission-detail" class="hidden h-full flex flex-col relative">
+                 <!-- Header: Back Button & Coupang Eats Logo -->
+                 <div class="flex items-center justify-between pt-4 pb-4 px-2">
+                    <button onclick="closeMissionDetail()" class="text-gray-500 active:scale-95 transition-transform">
+                        <span class="material-symbols-outlined text-3xl">arrow_back</span>
+                    </button>
+                    <img src="https://assets.coupangplay.com/images/coupangeats_logo_v2.png" alt="Coupang Eats" class="h-5">
+                    <div class="w-8"></div> <!-- Placeholder for right alignment -->
+                </div>
+                
+                <!-- Content Scroll Area -->
+                <div class="pt-4 pb-4 overflow-y-auto scrollbar-hide flex-1">
+                    <!-- Mission Title & Status -->
+                    <div class="flex items-start justify-between mb-8">
+                        <div>
+                            <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full mb-2 inline-block shadow-sm">상시 미션</span>
+                            <h2 class="text-2xl font-bold text-gray-900 leading-snug">6~13건 배달 시</h2>
+                        </div>
+                        <div class="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white shadow-lg shadow-green-200">
+                            <span class="material-symbols-outlined text-3xl">check</span>
+                        </div>
+                    </div>
+
+                    <!-- Mission Success Section -->
+                    <div class="text-center mb-10 bg-gradient-to-br from-green-50 to-blue-50 rounded-3xl p-6 border border-green-100 shadow-inner">
+                        <p class="text-sm font-semibold text-green-700 mb-2">미션 완료!</p>
+                        <h3 class="text-3xl font-extrabold text-green-800 mb-4 tracking-tight">45,000원 보너스 <span class="text-xl font-normal text-gray-500">획득</span></h3>
+                        <div class="w-24 h-24 bg-gradient-to-br from-yellow-300 to-amber-400 rounded-full flex items-center justify-center mx-auto relative ring-4 ring-yellow-100/50 shadow-xl shadow-yellow-200/50">
+                            <span class="material-symbols-outlined text-6xl text-white drop-shadow-md">paid</span>
+                            <span class="absolute -top-2 right-0 text-yellow-100 text-lg opacity-80">✦</span>
+                            <span class="absolute top-1/2 -left-3 text-yellow-100 text-xl opacity-80">✦</span>
+                            <span class="absolute bottom-0 left-1/4 text-yellow-100 text-md opacity-80">✦</span>
+                        </div>
+                    </div>
+
+                    <!-- Tier List -->
+                    <div class="mb-8">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-gray-900">최대 4만5천원 보너스</h3>
+                            <span class="text-[11px] text-gray-500 text-right leading-tight">미션 기간 종료<br>후 정산</span>
+                        </div>
+                        
+                        <div class="bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-4">
+                            <!-- Tier 1 -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="material-symbols-outlined text-gray-400 text-lg">check_circle</span>
+                                    <span class="text-base text-gray-600 font-medium">6건 달성 시</span>
+                                </div>
+                                <span class="text-base font-bold text-gray-700">총 10,000원</span>
+                            </div>
+                            <!-- Tier 2 -->
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="material-symbols-outlined text-gray-400 text-lg">check_circle</span>
+                                    <span class="text-base text-gray-600 font-medium">10건 달성 시</span>
+                                </div>
+                                <span class="text-base font-bold text-gray-700">총 25,000원</span>
+                            </div>
+                            <!-- Tier 3 (Active/Achieved) -->
+                            <div class="flex items-center justify-between bg-green-50 rounded-xl p-3 -mx-3 ring-1 ring-green-200">
+                                <div class="flex items-center gap-3">
+                                    <span class="material-symbols-outlined text-green-600 text-lg">check_circle</span>
+                                    <span class="text-base font-bold text-green-700">13건 달성 시</span>
+                                </div>
+                                <span class="text-base font-bold text-green-700">총 45,000원</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full h-px bg-gray-200 my-8"></div>
+
+                    <!-- Info List -->
+                    <div class="space-y-4 text-gray-600 text-sm bg-gray-50 rounded-2xl p-5 border border-gray-100">
+                        <div class="flex items-center gap-4">
+                            <span class="material-symbols-outlined text-gray-400 text-xl">calendar_today</span>
+                            <span class="text-sm text-gray-600">10.23 (목) 00:00 ~ 23:59</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="material-symbols-outlined text-gray-400 text-xl">schedule</span>
+                            <span class="text-sm text-orange-600 font-bold">17:00 ~ 20:00동안</span>
+                        </div>
+                         <div class="flex items-center gap-4">
+                            <span class="material-symbols-outlined text-gray-400 text-xl">person</span>
+                            <span class="text-sm text-gray-600">모든 배달파트너</span>
+                        </div>
+                         <div class="flex items-center gap-4">
+                            <span class="material-symbols-outlined text-gray-400 text-xl">location_on</span>
+                            <span class="text-sm text-gray-600">모든 지역</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Detail View: Selected Dong -->
             <div id="view-detail" class="hidden h-full flex flex-col">
+                <!-- Header: Name and Badge -->
                 <div class="flex justify-between items-start mb-6">
                     <div>
                         <h2 id="detail-title" class="text-2xl font-bold text-gray-900 mb-1 leading-tight">역삼동</h2>
@@ -193,19 +296,21 @@
                     </span>
                 </div>
 
+                <!-- Info Cards Grid (2 cols) -->
                 <div class="grid grid-cols-2 gap-3 mb-6">
-                    <!-- Price Card: Font size adjusted -->
+                    <!-- Price Card -->
                     <div class="bg-gray-50 rounded-xl p-4 flex flex-col items-center justify-center text-center h-24 border border-gray-100 shadow-sm">
                         <span class="text-[11px] text-gray-400 mb-1">기본 배달 단가</span>
-                        <span id="detail-price" class="text-base font-black text-gray-900 leading-tight break-keep">3,151원 ~</span>
+                        <span id="detail-price" class="text-lg font-extrabold text-gray-900">3,151원 ~</span>
                     </div>
-                    <!-- Status Card: Text color updated -->
+                    <!-- Status Card -->
                     <div class="bg-gray-50 rounded-xl p-4 flex flex-col items-center justify-center text-center h-24 border border-gray-100 shadow-sm">
                         <span class="text-[11px] text-gray-400 mb-1">주문 현황</span>
                         <span id="detail-status-text" class="text-lg font-extrabold text-gray-900">보통</span>
                     </div>
                 </div>
 
+                <!-- Bottom Buttons -->
                 <div class="mt-auto pt-4 grid grid-cols-2 gap-3">
                     <button onclick="closeDetail()" class="w-full bg-gray-100 text-gray-600 font-bold py-3.5 rounded-2xl active:scale-[0.98] transition-transform">
                         뒤로가기
@@ -220,54 +325,35 @@
         </div>
     </div>
 
+    <!-- Kakao Maps Loading Logic -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ffb46c6e52f67ba3c00997e78bc3590a&libraries=services"></script>
+
     <script>
-        /* ==========================================
-           [설정] 카카오 API 키를 아래에 입력해주세요.
-           ========================================== */
-        const KAKAO_API_KEY = 'YOUR_KAKAO_JS_KEY'; 
-        /* ========================================== */
-
-
-        // 카카오 맵 스크립트 동적 로드
-        (function() {
-            if(KAKAO_API_KEY === 'YOUR_KAKAO_JS_KEY') {
-                console.warn('카카오 맵 API 키가 설정되지 않았습니다.');
-                return;
-            }
-            const script = document.createElement('script');
-            // services, clusterer, drawing 라이브러리 포함
-            script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_API_KEY}&libraries=services,clusterer,drawing&autoload=false`;
-            script.onload = () => {
-                kakao.maps.load(() => {
-                    initMap();
-                });
-            };
-            script.onerror = () => {
-                console.error('카카오 맵 스크립트 로드 실패. API 키와 도메인 설정을 확인하세요.');
-            };
-            document.head.appendChild(script);
-        })();
-
-        /* Configuration */
+        /*
+         * Configuration & Data
+         * Real Polygon Data from User
+         */
         const SEOUL_GEOJSON = {
             "type": "FeatureCollection",
             "name": "dddd22222",
             "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
             "features": [
-                { "type": "Feature", "properties": { "EMD_CD": "11650106", "EMD_ENG_NM": "Jamwon-dong", "EMD_KOR_NM": "잠원동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.009, 37.526 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.524 ], [ 127.011, 37.524 ], [ 127.011, 37.524 ], [ 127.012, 37.524 ], [ 127.012, 37.523 ], [ 127.012, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.017, 37.523 ], [ 127.018, 37.522 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.019, 37.519 ], [ 127.019, 37.519 ], [ 127.019, 37.518 ], [ 127.019, 37.518 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.02, 37.516 ], [ 127.021, 37.513 ], [ 127.021, 37.511 ], [ 127.021, 37.511 ], [ 127.016, 37.51 ], [ 127.009, 37.507 ], [ 127.001, 37.505 ], [ 127.0, 37.507 ], [ 127.0, 37.507 ], [ 126.999, 37.51 ], [ 126.998, 37.511 ], [ 126.998, 37.512 ], [ 127.0, 37.513 ], [ 127.0, 37.513 ], [ 127.001, 37.514 ], [ 127.001, 37.514 ], [ 126.998, 37.516 ], [ 126.997, 37.517 ], [ 126.998, 37.517 ], [ 126.998, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.002, 37.52 ], [ 127.002, 37.52 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.005, 37.522 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.007, 37.524 ], [ 127.007, 37.524 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ] ] ] ] } },
+                { "type": "Feature", "properties": { "EMD_CD": "11650106", "EMD_ENG_NM": "Jamwon-dong", "EMD_KOR_NM": "잠원동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ], [ 127.009, 37.526 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.009, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.525 ], [ 127.01, 37.524 ], [ 127.011, 37.524 ], [ 127.011, 37.524 ], [ 127.012, 37.524 ], [ 127.012, 37.523 ], [ 127.012, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.013, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.523 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.014, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.524 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.015, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.525 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.016, 37.524 ], [ 127.017, 37.523 ], [ 127.018, 37.522 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.019, 37.519 ], [ 127.019, 37.519 ], [ 127.019, 37.518 ], [ 127.019, 37.518 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.02, 37.516 ], [ 127.021, 37.513 ], [ 127.021, 37.511 ], [ 127.021, 37.511 ], [ 127.016, 37.51 ], [ 127.009, 37.507 ], [ 127.001, 37.505 ], [ 127.0, 37.507 ], [ 127.0, 37.507 ], [ 126.999, 37.51 ], [ 126.998, 37.511 ], [ 126.998, 37.512 ], [ 127.0, 37.513 ], [ 127.0, 37.513 ], [ 127.001, 37.514 ], [ 127.001, 37.514 ], [ 126.998, 37.516 ], [ 126.997, 37.517 ], [ 126.998, 37.517 ], [ 126.998, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 126.999, 37.518 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.0, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.519 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.001, 37.52 ], [ 127.002, 37.52 ], [ 127.002, 37.52 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.003, 37.521 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.004, 37.522 ], [ 127.005, 37.522 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.006, 37.523 ], [ 127.007, 37.524 ], [ 127.007, 37.524 ], [ 127.008, 37.525 ], [ 127.008, 37.525 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11650107", "EMD_ENG_NM": "Banpo-dong", "EMD_KOR_NM": "반포동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 126.992, 37.514 ], [ 126.993, 37.514 ], [ 126.994, 37.515 ], [ 126.995, 37.516 ], [ 126.996, 37.516 ], [ 126.996, 37.517 ], [ 126.997, 37.517 ], [ 126.998, 37.516 ], [ 127.001, 37.514 ], [ 127.0, 37.513 ], [ 126.998, 37.512 ], [ 126.998, 37.511 ], [ 126.999, 37.51 ], [ 127.0, 37.507 ], [ 127.001, 37.505 ], [ 127.009, 37.507 ], [ 127.016, 37.51 ], [ 127.021, 37.511 ], [ 127.024, 37.504 ], [ 127.023, 37.504 ], [ 127.021, 37.503 ], [ 127.02, 37.503 ], [ 127.019, 37.503 ], [ 127.02, 37.5 ], [ 127.019, 37.5 ], [ 127.017, 37.501 ], [ 127.016, 37.502 ], [ 127.013, 37.5 ], [ 127.012, 37.5 ], [ 127.012, 37.499 ], [ 127.011, 37.499 ], [ 127.01, 37.499 ], [ 127.009, 37.499 ], [ 127.009, 37.498 ], [ 127.01, 37.498 ], [ 127.011, 37.498 ], [ 127.011, 37.497 ], [ 127.01, 37.497 ], [ 127.009, 37.497 ], [ 127.008, 37.497 ], [ 127.007, 37.497 ], [ 127.006, 37.497 ], [ 127.005, 37.497 ], [ 127.004, 37.496 ], [ 127.004, 37.495 ], [ 127.003, 37.495 ], [ 127.003, 37.494 ], [ 127.002, 37.493 ], [ 127.002, 37.492 ], [ 127.001, 37.492 ], [ 127.0, 37.492 ], [ 127.0, 37.493 ], [ 126.999, 37.493 ], [ 126.998, 37.493 ], [ 126.998, 37.494 ], [ 126.997, 37.494 ], [ 126.996, 37.494 ], [ 126.995, 37.494 ], [ 126.995, 37.495 ], [ 126.995, 37.496 ], [ 126.994, 37.496 ], [ 126.993, 37.496 ], [ 126.993, 37.497 ], [ 126.992, 37.497 ], [ 126.991, 37.497 ], [ 126.991, 37.498 ], [ 126.99, 37.498 ], [ 126.989, 37.498 ], [ 126.989, 37.499 ], [ 126.988, 37.499 ], [ 126.987, 37.499 ], [ 126.986, 37.499 ], [ 126.986, 37.5 ], [ 126.985, 37.5 ], [ 126.985, 37.501 ], [ 126.984, 37.501 ], [ 126.983, 37.501 ], [ 126.983, 37.502 ], [ 126.982, 37.502 ], [ 126.981, 37.502 ], [ 126.981, 37.503 ], [ 126.98, 37.503 ], [ 126.98, 37.504 ], [ 126.98, 37.505 ], [ 126.98, 37.506 ], [ 126.98, 37.507 ], [ 126.981, 37.507 ], [ 126.982, 37.507 ], [ 126.983, 37.507 ], [ 126.984, 37.507 ], [ 126.985, 37.507 ], [ 126.986, 37.507 ], [ 126.986, 37.508 ], [ 126.987, 37.508 ], [ 126.987, 37.509 ], [ 126.988, 37.51 ], [ 126.989, 37.511 ], [ 126.99, 37.512 ], [ 126.99, 37.513 ], [ 126.991, 37.513 ], [ 126.992, 37.514 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11650108", "EMD_ENG_NM": "Seocho-dong", "EMD_KOR_NM": "서초동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.028, 37.498 ], [ 127.032, 37.49 ], [ 127.034, 37.484 ], [ 127.034, 37.483 ], [ 127.034, 37.482 ], [ 127.033, 37.482 ], [ 127.033, 37.481 ], [ 127.032, 37.481 ], [ 127.031, 37.481 ], [ 127.031, 37.48 ], [ 127.03, 37.48 ], [ 127.029, 37.481 ], [ 127.028, 37.481 ], [ 127.027, 37.481 ], [ 127.026, 37.481 ], [ 127.025, 37.481 ], [ 127.024, 37.481 ], [ 127.024, 37.48 ], [ 127.023, 37.479 ], [ 127.023, 37.478 ], [ 127.022, 37.478 ], [ 127.022, 37.477 ], [ 127.021, 37.477 ], [ 127.02, 37.477 ], [ 127.019, 37.477 ], [ 127.018, 37.477 ], [ 127.017, 37.476 ], [ 127.016, 37.476 ], [ 127.016, 37.475 ], [ 127.015, 37.475 ], [ 127.015, 37.474 ], [ 127.014, 37.473 ], [ 127.013, 37.473 ], [ 127.012, 37.473 ], [ 127.011, 37.473 ], [ 127.01, 37.473 ], [ 127.01, 37.474 ], [ 127.009, 37.474 ], [ 127.009, 37.475 ], [ 127.008, 37.476 ], [ 127.008, 37.477 ], [ 127.007, 37.477 ], [ 127.007, 37.478 ], [ 127.006, 37.48 ], [ 127.005, 37.483 ], [ 127.004, 37.483 ], [ 127.002, 37.482 ], [ 127.002, 37.483 ], [ 127.001, 37.483 ], [ 127.001, 37.484 ], [ 127.001, 37.485 ], [ 127.0, 37.485 ], [ 127.0, 37.486 ], [ 127.001, 37.486 ], [ 127.001, 37.487 ], [ 127.001, 37.488 ], [ 127.0, 37.489 ], [ 127.0, 37.49 ], [ 127.0, 37.491 ], [ 127.0, 37.492 ], [ 127.001, 37.492 ], [ 127.002, 37.492 ], [ 127.002, 37.493 ], [ 127.003, 37.494 ], [ 127.003, 37.495 ], [ 127.004, 37.495 ], [ 127.004, 37.496 ], [ 127.005, 37.497 ], [ 127.006, 37.497 ], [ 127.007, 37.497 ], [ 127.008, 37.497 ], [ 127.009, 37.497 ], [ 127.01, 37.497 ], [ 127.011, 37.497 ], [ 127.011, 37.498 ], [ 127.01, 37.498 ], [ 127.009, 37.498 ], [ 127.009, 37.499 ], [ 127.01, 37.499 ], [ 127.011, 37.499 ], [ 127.012, 37.499 ], [ 127.012, 37.5 ], [ 127.013, 37.5 ], [ 127.016, 37.502 ], [ 127.017, 37.501 ], [ 127.019, 37.5 ], [ 127.02, 37.5 ], [ 127.019, 37.503 ], [ 127.02, 37.503 ], [ 127.021, 37.503 ], [ 127.023, 37.504 ], [ 127.024, 37.504 ], [ 127.028, 37.498 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11680101", "EMD_ENG_NM": "Yeoksam-dong", "EMD_KOR_NM": "역삼동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.049, 37.504 ], [ 127.05, 37.503 ], [ 127.05, 37.501 ], [ 127.051, 37.501 ], [ 127.051, 37.5 ], [ 127.052, 37.499 ], [ 127.052, 37.497 ], [ 127.053, 37.496 ], [ 127.052, 37.496 ], [ 127.051, 37.496 ], [ 127.048, 37.495 ], [ 127.047, 37.494 ], [ 127.046, 37.494 ], [ 127.044, 37.493 ], [ 127.041, 37.493 ], [ 127.041, 37.492 ], [ 127.039, 37.492 ], [ 127.037, 37.491 ], [ 127.035, 37.491 ], [ 127.035, 37.49 ], [ 127.034, 37.49 ], [ 127.033, 37.49 ], [ 127.032, 37.49 ], [ 127.028, 37.498 ], [ 127.024, 37.504 ], [ 127.025, 37.505 ], [ 127.026, 37.505 ], [ 127.028, 37.505 ], [ 127.028, 37.506 ], [ 127.03, 37.506 ], [ 127.032, 37.507 ], [ 127.034, 37.507 ], [ 127.035, 37.508 ], [ 127.037, 37.508 ], [ 127.038, 37.509 ], [ 127.039, 37.509 ], [ 127.041, 37.509 ], [ 127.042, 37.51 ], [ 127.044, 37.51 ], [ 127.044, 37.509 ], [ 127.045, 37.509 ], [ 127.045, 37.508 ], [ 127.046, 37.508 ], [ 127.047, 37.507 ], [ 127.048, 37.507 ], [ 127.048, 37.506 ], [ 127.049, 37.505 ], [ 127.049, 37.504 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11680104", "EMD_ENG_NM": "Cheongdam-dong", "EMD_KOR_NM": "청담동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.047, 37.534 ], [ 127.047, 37.534 ], [ 127.047, 37.534 ], [ 127.047, 37.533 ], [ 127.048, 37.533 ], [ 127.048, 37.533 ], [ 127.049, 37.533 ], [ 127.049, 37.533 ], [ 127.049, 37.532 ], [ 127.05, 37.532 ], [ 127.051, 37.532 ], [ 127.051, 37.531 ], [ 127.051, 37.531 ], [ 127.051, 37.531 ], [ 127.051, 37.531 ], [ 127.052, 37.531 ], [ 127.052, 37.531 ], [ 127.052, 37.53 ], [ 127.053, 37.53 ], [ 127.053, 37.53 ], [ 127.053, 37.53 ], [ 127.053, 37.53 ], [ 127.053, 37.53 ], [ 127.054, 37.53 ], [ 127.054, 37.53 ], [ 127.054, 37.529 ], [ 127.054, 37.529 ], [ 127.055, 37.529 ], [ 127.055, 37.529 ], [ 127.055, 37.529 ], [ 127.055, 37.529 ], [ 127.056, 37.528 ], [ 127.056, 37.528 ], [ 127.057, 37.528 ], [ 127.058, 37.528 ], [ 127.058, 37.528 ], [ 127.058, 37.528 ], [ 127.059, 37.528 ], [ 127.059, 37.528 ], [ 127.059, 37.528 ], [ 127.059, 37.527 ], [ 127.06, 37.527 ], [ 127.06, 37.527 ], [ 127.06, 37.527 ], [ 127.061, 37.527 ], [ 127.061, 37.527 ], [ 127.062, 37.527 ], [ 127.063, 37.526 ], [ 127.065, 37.525 ], [ 127.065, 37.525 ], [ 127.065, 37.523 ], [ 127.064, 37.522 ], [ 127.064, 37.522 ], [ 127.064, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.061, 37.522 ], [ 127.06, 37.521 ], [ 127.058, 37.52 ], [ 127.057, 37.52 ], [ 127.057, 37.52 ], [ 127.055, 37.52 ], [ 127.053, 37.519 ], [ 127.051, 37.519 ], [ 127.051, 37.519 ], [ 127.05, 37.519 ], [ 127.048, 37.518 ], [ 127.046, 37.518 ], [ 127.044, 37.518 ], [ 127.043, 37.518 ], [ 127.042, 37.517 ], [ 127.041, 37.517 ], [ 127.041, 37.517 ], [ 127.041, 37.518 ], [ 127.041, 37.518 ], [ 127.041, 37.519 ], [ 127.04, 37.52 ], [ 127.04, 37.522 ], [ 127.039, 37.523 ], [ 127.039, 37.523 ], [ 127.039, 37.523 ], [ 127.039, 37.523 ], [ 127.041, 37.528 ], [ 127.041, 37.528 ], [ 127.044, 37.527 ], [ 127.044, 37.527 ], [ 127.044, 37.527 ], [ 127.044, 37.528 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.045, 37.53 ], [ 127.046, 37.531 ], [ 127.046, 37.532 ], [ 127.047, 37.534 ] ] ] ] } },
-                { "type": "Feature", "properties": { "EMD_CD": "11680105", "EMD_ENG_NM": "Samseong-dong", "EMD_KOR_NM": "삼성동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.065, 37.525 ], [ 127.065, 37.525 ], [ 127.065, 37.525 ], [ 127.066, 37.525 ], [ 127.067, 37.525 ], [ 127.068, 37.525 ], [ 127.068, 37.524 ], [ 127.068, 37.522 ], [ 127.068, 37.521 ], [ 127.068, 37.521 ], [ 127.068, 37.521 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.517 ], [ 127.068, 37.516 ], [ 127.068, 37.514 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.511 ], [ 127.069, 37.511 ], [ 127.069, 37.511 ], [ 127.069, 37.511 ], [ 127.069, 37.51 ], [ 127.069, 37.51 ], [ 127.068, 37.51 ], [ 127.068, 37.51 ], [ 127.068, 37.51 ], [ 127.067, 37.51 ], [ 127.067, 37.51 ], [ 127.067, 37.51 ], [ 127.066, 37.51 ], [ 127.065, 37.509 ], [ 127.064, 37.509 ], [ 127.062, 37.508 ], [ 127.061, 37.508 ], [ 127.06, 37.508 ], [ 127.059, 37.508 ], [ 127.059, 37.508 ], [ 127.058, 37.507 ], [ 127.057, 37.507 ], [ 127.057, 37.507 ], [ 127.056, 37.507 ], [ 127.055, 37.506 ], [ 127.053, 37.506 ], [ 127.052, 37.505 ], [ 127.051, 37.505 ], [ 127.049, 37.505 ], [ 127.049, 37.505 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.507 ], [ 127.048, 37.507 ], [ 127.048, 37.507 ], [ 127.048, 37.507 ], [ 127.047, 37.507 ], [ 127.047, 37.507 ], [ 127.046, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.509 ], [ 127.045, 37.509 ], [ 127.045, 37.509 ], [ 127.045, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.51 ], [ 127.044, 37.511 ], [ 127.043, 37.512 ], [ 127.043, 37.514 ], [ 127.042, 37.515 ], [ 127.042, 37.516 ], [ 127.041, 37.517 ], [ 127.041, 37.517 ], [ 127.042, 37.517 ], [ 127.043, 37.518 ], [ 127.044, 37.518 ], [ 127.046, 37.518 ], [ 127.048, 37.518 ], [ 127.05, 37.519 ], [ 127.051, 37.519 ], [ 127.051, 37.519 ], [ 127.053, 37.519 ], [ 127.055, 37.52 ], [ 127.057, 37.52 ], [ 127.057, 37.52 ], [ 127.058, 37.52 ], [ 127.06, 37.521 ], [ 127.061, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.064, 37.522 ], [ 127.064, 37.522 ], [ 127.064, 37.522 ], [ 127.065, 37.523 ], [ 127.065, 37.525 ] ] ] ] } },
+                { "type": "Feature", "properties": { "EMD_CD": "11680105", "EMD_ENG_NM": "Samseong-dong", "EMD_KOR_NM": "삼성동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.065, 37.525 ], [ 127.065, 37.525 ], [ 127.065, 37.525 ], [ 127.066, 37.525 ], [ 127.067, 37.525 ], [ 127.068, 37.525 ], [ 127.068, 37.524 ], [ 127.068, 37.522 ], [ 127.068, 37.521 ], [ 127.068, 37.521 ], [ 127.068, 37.521 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.52 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.519 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.518 ], [ 127.068, 37.517 ], [ 127.068, 37.516 ], [ 127.068, 37.514 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.512 ], [ 127.069, 37.511 ], [ 127.069, 37.511 ], [ 127.069, 37.511 ], [ 127.069, 37.511 ], [ 127.069, 37.51 ], [ 127.069, 37.51 ], [ 127.068, 37.51 ], [ 127.068, 37.51 ], [ 127.068, 37.51 ], [ 127.067, 37.51 ], [ 127.067, 37.51 ], [ 127.067, 37.51 ], [ 127.066, 37.51 ], [ 127.065, 37.509 ], [ 127.064, 37.509 ], [ 127.062, 37.508 ], [ 127.061, 37.508 ], [ 127.06, 37.508 ], [ 127.059, 37.508 ], [ 127.059, 37.508 ], [ 127.058, 37.507 ], [ 127.057, 37.507 ], [ 127.057, 37.507 ], [ 127.056, 37.507 ], [ 127.055, 37.506 ], [ 127.053, 37.506 ], [ 127.052, 37.505 ], [ 127.051, 37.505 ], [ 127.049, 37.505 ], [ 127.049, 37.505 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.506 ], [ 127.048, 37.507 ], [ 127.048, 37.507 ], [ 127.048, 37.507 ], [ 127.048, 37.507 ], [ 127.047, 37.507 ], [ 127.047, 37.507 ], [ 127.046, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.508 ], [ 127.045, 37.509 ], [ 127.045, 37.509 ], [ 127.045, 37.509 ], [ 127.045, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.509 ], [ 127.044, 37.51 ], [ 127.044, 37.511 ], [ 127.043, 37.512 ], [ 127.043, 37.514 ], [ 127.042, 37.515 ], [ 127.042, 37.516 ], [ 127.041, 37.517 ], [ 127.041, 37.517 ], [ 127.042, 37.517 ], [ 127.043, 37.518 ], [ 127.044, 37.518 ], [ 127.046, 37.518 ], [ 127.048, 37.518 ], [ 127.05, 37.519 ], [ 127.051, 37.519 ], [ 127.051, 37.519 ], [ 127.053, 37.519 ], [ 127.055, 37.52 ], [ 127.057, 37.52 ], [ 127.057, 37.52 ], [ 127.058, 37.52 ], [ 127.06, 37.521 ], [ 127.061, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.062, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.063, 37.522 ], [ 127.064, 37.522 ], [ 127.064, 37.522 ], [ 127.064, 37.522 ], [ 127.065, 37.523 ], [ 127.065, 37.525 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11680106", "EMD_ENG_NM": "Daechi-dong", "EMD_KOR_NM": "대치동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.069, 37.509 ], [ 127.069, 37.508 ], [ 127.069, 37.507 ], [ 127.069, 37.506 ], [ 127.07, 37.504 ], [ 127.07, 37.503 ], [ 127.071, 37.503 ], [ 127.072, 37.503 ], [ 127.073, 37.502 ], [ 127.074, 37.502 ], [ 127.075, 37.502 ], [ 127.076, 37.502 ], [ 127.077, 37.502 ], [ 127.078, 37.502 ], [ 127.08, 37.501 ], [ 127.08, 37.5 ], [ 127.08, 37.499 ], [ 127.08, 37.498 ], [ 127.079, 37.498 ], [ 127.078, 37.498 ], [ 127.078, 37.497 ], [ 127.077, 37.497 ], [ 127.076, 37.497 ], [ 127.075, 37.496 ], [ 127.074, 37.495 ], [ 127.074, 37.494 ], [ 127.073, 37.494 ], [ 127.072, 37.494 ], [ 127.07, 37.492 ], [ 127.068, 37.491 ], [ 127.067, 37.49 ], [ 127.066, 37.49 ], [ 127.061, 37.489 ], [ 127.059, 37.489 ], [ 127.058, 37.489 ], [ 127.057, 37.488 ], [ 127.056, 37.488 ], [ 127.055, 37.491 ], [ 127.054, 37.493 ], [ 127.053, 37.496 ], [ 127.052, 37.497 ], [ 127.052, 37.499 ], [ 127.051, 37.5 ], [ 127.051, 37.501 ], [ 127.05, 37.501 ], [ 127.05, 37.503 ], [ 127.049, 37.504 ], [ 127.049, 37.505 ], [ 127.051, 37.505 ], [ 127.052, 37.505 ], [ 127.053, 37.506 ], [ 127.055, 37.506 ], [ 127.056, 37.507 ], [ 127.057, 37.507 ], [ 127.058, 37.507 ], [ 127.059, 37.508 ], [ 127.06, 37.508 ], [ 127.061, 37.508 ], [ 127.062, 37.508 ], [ 127.064, 37.509 ], [ 127.065, 37.509 ], [ 127.066, 37.51 ], [ 127.067, 37.51 ], [ 127.068, 37.51 ], [ 127.069, 37.51 ], [ 127.069, 37.509 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11680107", "EMD_ENG_NM": "Sinsa-dong", "EMD_KOR_NM": "신사동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.022, 37.517 ], [ 127.02, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.516 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.517 ], [ 127.019, 37.518 ], [ 127.019, 37.518 ], [ 127.019, 37.519 ], [ 127.019, 37.519 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.52 ], [ 127.018, 37.522 ], [ 127.02, 37.523 ], [ 127.029, 37.527 ], [ 127.031, 37.528 ], [ 127.031, 37.528 ], [ 127.031, 37.528 ], [ 127.031, 37.529 ], [ 127.031, 37.529 ], [ 127.031, 37.529 ], [ 127.031, 37.529 ], [ 127.031, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.032, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.033, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.034, 37.529 ], [ 127.035, 37.529 ], [ 127.035, 37.529 ], [ 127.035, 37.529 ], [ 127.035, 37.529 ], [ 127.035, 37.529 ], [ 127.035, 37.529 ], [ 127.035, 37.529 ], [ 127.035, 37.529 ], [ 127.036, 37.529 ], [ 127.036, 37.529 ], [ 127.036, 37.529 ], [ 127.036, 37.529 ], [ 127.036, 37.529 ], [ 127.036, 37.529 ], [ 127.036, 37.529 ], [ 127.041, 37.528 ], [ 127.041, 37.528 ], [ 127.039, 37.523 ], [ 127.039, 37.523 ], [ 127.038, 37.523 ], [ 127.037, 37.523 ], [ 127.035, 37.522 ], [ 127.032, 37.521 ], [ 127.03, 37.52 ], [ 127.028, 37.52 ], [ 127.028, 37.52 ], [ 127.026, 37.519 ], [ 127.026, 37.519 ], [ 127.023, 37.518 ], [ 127.022, 37.517 ] ] ] ] } },
+                { "type": "Feature", "properties": { "EMD_CD": "11680108", "EMD_ENG_NM": "Nonhyeon-dong", "EMD_KOR_NM": "논현동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.041, 37.517 ], [ 127.042, 37.516 ], [ 127.042, 37.515 ], [ 127.043, 37.514 ], [ 127.043, 37.512 ], [ 127.044, 37.511 ], [ 127.044, 37.51 ], [ 127.044, 37.51 ], [ 127.042, 37.51 ], [ 127.041, 37.509 ], [ 127.039, 37.509 ], [ 127.038, 37.509 ], [ 127.037, 37.508 ], [ 127.037, 37.508 ], [ 127.035, 37.508 ], [ 127.034, 37.507 ], [ 127.032, 37.507 ], [ 127.032, 37.507 ], [ 127.03, 37.506 ], [ 127.028, 37.506 ], [ 127.028, 37.505 ], [ 127.026, 37.505 ], [ 127.025, 37.505 ], [ 127.024, 37.504 ], [ 127.021, 37.511 ], [ 127.021, 37.513 ], [ 127.02, 37.516 ], [ 127.022, 37.517 ], [ 127.023, 37.518 ], [ 127.026, 37.519 ], [ 127.026, 37.519 ], [ 127.028, 37.52 ], [ 127.028, 37.52 ], [ 127.03, 37.52 ], [ 127.032, 37.521 ], [ 127.035, 37.522 ], [ 127.037, 37.523 ], [ 127.038, 37.523 ], [ 127.039, 37.523 ], [ 127.039, 37.523 ], [ 127.039, 37.523 ], [ 127.04, 37.522 ], [ 127.04, 37.52 ], [ 127.041, 37.519 ], [ 127.041, 37.518 ], [ 127.041, 37.518 ], [ 127.041, 37.517 ] ] ] ] } },
+                { "type": "Feature", "properties": { "EMD_CD": "11680110", "EMD_ENG_NM": "Apgujeong-dong", "EMD_KOR_NM": "압구정동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.018, 37.534 ], [ 127.019, 37.535 ], [ 127.02, 37.535 ], [ 127.021, 37.536 ], [ 127.022, 37.536 ], [ 127.023, 37.536 ], [ 127.024, 37.536 ], [ 127.025, 37.536 ], [ 127.027, 37.536 ], [ 127.028, 37.536 ], [ 127.029, 37.536 ], [ 127.03, 37.536 ], [ 127.031, 37.536 ], [ 127.032, 37.536 ], [ 127.033, 37.536 ], [ 127.035, 37.536 ], [ 127.036, 37.536 ], [ 127.037, 37.536 ], [ 127.04, 37.536 ], [ 127.041, 37.535 ], [ 127.044, 37.535 ], [ 127.045, 37.535 ], [ 127.046, 37.534 ], [ 127.046, 37.532 ], [ 127.046, 37.531 ], [ 127.045, 37.53 ], [ 127.044, 37.528 ], [ 127.044, 37.527 ], [ 127.041, 37.528 ], [ 127.036, 37.529 ], [ 127.035, 37.529 ], [ 127.034, 37.529 ], [ 127.033, 37.529 ], [ 127.032, 37.529 ], [ 127.031, 37.529 ], [ 127.031, 37.528 ], [ 127.029, 37.527 ], [ 127.02, 37.523 ], [ 127.018, 37.522 ], [ 127.017, 37.523 ], [ 127.016, 37.524 ], [ 127.016, 37.525 ], [ 127.016, 37.526 ], [ 127.016, 37.527 ], [ 127.014, 37.529 ], [ 127.013, 37.53 ], [ 127.013, 37.531 ], [ 127.014, 37.531 ], [ 127.014, 37.532 ], [ 127.015, 37.532 ], [ 127.016, 37.532 ], [ 127.016, 37.533 ], [ 127.017, 37.533 ], [ 127.017, 37.534 ], [ 127.018, 37.534 ] ] ] ] } },
                 { "type": "Feature", "properties": { "EMD_CD": "11680118", "EMD_ENG_NM": "Dogok-dong", "EMD_KOR_NM": "도곡동" }, "geometry": { "type": "MultiPolygon", "coordinates": [ [ [ [ 127.054, 37.493 ], [ 127.055, 37.491 ], [ 127.056, 37.488 ], [ 127.052, 37.485 ], [ 127.048, 37.483 ], [ 127.045, 37.481 ], [ 127.044, 37.481 ], [ 127.043, 37.481 ], [ 127.043, 37.482 ], [ 127.042, 37.483 ], [ 127.042, 37.484 ], [ 127.042, 37.485 ], [ 127.041, 37.485 ], [ 127.04, 37.485 ], [ 127.039, 37.485 ], [ 127.038, 37.485 ], [ 127.037, 37.485 ], [ 127.036, 37.485 ], [ 127.035, 37.485 ], [ 127.035, 37.484 ], [ 127.034, 37.484 ], [ 127.032, 37.489 ], [ 127.032, 37.49 ], [ 127.033, 37.49 ], [ 127.034, 37.49 ], [ 127.035, 37.49 ], [ 127.035, 37.491 ], [ 127.037, 37.491 ], [ 127.039, 37.492 ], [ 127.041, 37.492 ], [ 127.041, 37.493 ], [ 127.044, 37.493 ], [ 127.046, 37.494 ], [ 127.047, 37.494 ], [ 127.048, 37.495 ], [ 127.051, 37.496 ], [ 127.052, 37.496 ], [ 127.053, 37.496 ], [ 127.054, 37.493 ] ] ] ] } }
             ]
         };
 
         const STATUS = {
-            VERY_BUSY: { id: 'very_busy', label: '매우 바쁨', colorClass: 'status-badge-very-busy', borderClass: 'border-very-busy', stroke: '#ef4444' },
+            VERY_BUSY: { id: 'very_busy', label: '매우 바쁨', colorClass: 'status-badge-very-busy', borderClass: 'border-very-busy', stroke: '#DC2626' },
             BUSY: { id: 'busy', label: '바쁨', colorClass: 'status-badge-busy', borderClass: 'border-busy', stroke: '#f97316' },
             NORMAL: { id: 'normal', label: '보통', colorClass: 'status-badge-normal', borderClass: 'border-normal', stroke: '#22c55e' },
             QUIET: { id: 'quiet', label: '한가', colorClass: 'status-badge-quiet', borderClass: 'border-quiet', stroke: '#9ca3af' }
@@ -276,33 +362,48 @@
         let map;
         let mapMarkers = []; 
         let DONGS = [];
-        let liveUpdateInterval;
+
+        function loadKakaoMaps() {
+            const script = document.createElement('script');
+            // Use HTTPS protocol explicitly and autoload=false
+            script.src = "https://dapi.kakao.com/v2/maps/sdk.js?appkey=ffb46c6e52f67ba3c00997e78bc3590a&autoload=false&libraries=services";
+            script.async = true;
+            script.onload = () => {
+                // Kakao SDK loaded, now initialize map
+                kakao.maps.load(() => {
+                    initMap();
+                });
+            };
+            script.onerror = () => {
+                console.error("Failed to load Kakao Maps SDK");
+                // Optional: Show error UI to user
+            };
+            document.head.appendChild(script);
+        }
 
         function initMap() {
-            const container = document.getElementById('map');
-            // 카카오 맵 옵션
-            const options = {
+            var container = document.getElementById('map');
+            var options = {
                 center: new kakao.maps.LatLng(37.5100, 127.0400),
-                level: 6 // 줌 레벨 (낮을수록 확대)
+                level: 6 
             };
 
             map = new kakao.maps.Map(container, options);
 
-            // 폴리곤 중심 계산 함수
+            // Helper to find polygon center
             function getPolygonCenter(paths) {
                 let lat = 0, lng = 0;
-                paths.forEach(p => { lat += p.getLat(); lng += p.getLng(); });
-                return new kakao.maps.LatLng(lat / paths.length, lng / paths.length);
+                paths.forEach(p => { lat += p.lat; lng += p.lng; });
+                return { lat: lat / paths.length, lng: lng / paths.length };
             }
 
-            // GeoJSON 데이터를 카카오 맵 데이터로 변환
+            // Transform GeoJSON to App Config
             DONGS = SEOUL_GEOJSON.features.map((feature, index) => {
-                // GeoJSON은 [lng, lat] 순서, 카카오는 (lat, lng) 순서
                 const rawCoords = feature.geometry.coordinates[0][0];
-                const paths = rawCoords.map(coord => new kakao.maps.LatLng(coord[1], coord[0]));
+                const paths = rawCoords.map(coord => ({ lat: coord[1], lng: coord[0] }));
                 const center = getPolygonCenter(paths);
                 
-                // 랜덤 초기 상태 설정
+                // Random initial status for demo
                 const statuses = Object.values(STATUS);
                 const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
                 const randomBasePrice = 3000 + Math.floor(Math.random() * 20) * 100;
@@ -319,39 +420,44 @@
                 };
             });
 
-            // 각 동별 요소 생성
+            // Create visual elements
             DONGS.forEach(dong => {
                 createDongElement(dong);
             });
 
-            // 실시간 업데이트 시작
+             // Center map on the average of all dongs
+            if(DONGS.length > 0) {
+                let avgLat = 0, avgLng = 0;
+                DONGS.forEach(d => { avgLat += d.center.lat; avgLng += d.center.lng; });
+                map.setCenter(new kakao.maps.LatLng(avgLat / DONGS.length, avgLng / DONGS.length));
+            }
+
             startLiveUpdates();
+            initSheetResize();
         }
 
         function createDongElement(dong) {
             const totalPrice = (dong.basePrice + dong.surge).toLocaleString();
             
-            // 1. 폴리곤 생성 (카카오)
-            const polygon = new kakao.maps.Polygon({
-                path: dong.paths, // 좌표 배열
+            // 1. Create Polygon
+            var polygonPath = dong.paths.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+            
+            var polygon = new kakao.maps.Polygon({
+                path: polygonPath,
                 strokeWeight: 2,
                 strokeColor: dong.status.stroke,
-                strokeOpacity: 0.8,
+                strokeOpacity: 1,
                 fillColor: dong.status.stroke,
-                fillOpacity: 0.1
+                fillOpacity: 0.05, 
+                zIndex: 1
             });
             polygon.setMap(map);
 
-            // 이벤트 리스너 (카카오)
-            kakao.maps.event.addListener(polygon, 'click', function() {
-                selectDong(dong);
-            });
-            
-            // 2. 커스텀 오버레이 생성 (마커 대체)
-            const content = document.createElement('div');
-            content.className = `marker-container cursor-pointer group relative flex flex-col items-center`;
-            content.innerHTML = `
-                <div class="relative" onclick="selectDongId('${dong.id}')">
+            // 2. Create Custom Overlay (Marker)
+            const markerContainer = document.createElement('div');
+            markerContainer.className = `marker-container cursor-pointer group relative flex flex-col items-center`;
+            markerContainer.innerHTML = `
+                <div class="relative">
                     <div class="marker-box bg-white rounded-2xl shadow-md border-[2.5px] ${dong.status.borderClass} p-1.5 min-w-[90px] flex flex-col items-center justify-center transition-colors duration-300 ${dong.status.id === 'very_busy' ? 'pulse-active' : ''}" id="marker-box-${dong.id}">
                         <div class="text-[11px] text-gray-500 font-bold leading-tight mb-0.5">${dong.name}</div>
                         <div class="text-[17px] font-black text-gray-900 leading-none mb-1" id="price-${dong.id}">${totalPrice}</div>
@@ -363,92 +469,87 @@
                     <div class="absolute -bottom-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-white border-b-[2.5px] border-r-[2.5px] ${dong.status.borderClass} rotate-45"></div>
                 </div>
             `;
+            
+            // Add click event to the marker DOM element directly
+            markerContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectDong(dong);
+            });
+            
+            // Add click event to Polygon
+            kakao.maps.event.addListener(polygon, 'click', function() {
+                selectDong(dong);
+            });
 
-            const customOverlay = new kakao.maps.CustomOverlay({
-                position: dong.center,
-                content: content,
-                yAnchor: 1 // 바텀 앵커
+            var position = new kakao.maps.LatLng(dong.center.lat, dong.center.lng);
+            var customOverlay = new kakao.maps.CustomOverlay({
+                position: position,
+                content: markerContainer,
+                yAnchor: 1,
+                zIndex: 10
             });
             customOverlay.setMap(map);
 
-            mapMarkers.push({ 
-                id: dong.id, 
-                overlay: customOverlay, 
-                element: content, 
-                data: dong, 
-                polygon: polygon 
-            });
+            mapMarkers.push({ id: dong.id, overlay: customOverlay, element: markerContainer, data: dong, polygon: polygon });
         }
 
-        // 전역 함수로 노출 (HTML onclick에서 호출하기 위해)
-        window.selectDongId = function(id) {
-            const target = DONGS.find(d => d.id === id);
-            if(target) selectDong(target);
-        };
-
         function selectDong(dong) {
-            // 이전 선택 초기화
+            // Reset previous active states
             mapMarkers.forEach(m => {
                 m.element.classList.remove('marker-active');
-                m.element.style.zIndex = ''; // zIndex 초기화
+                m.overlay.setZIndex(10);
                 
                 if (m.polygon) {
                     m.polygon.setOptions({
-                        fillOpacity: 0.1,
-                        strokeWeight: 2
+                        fillOpacity: 0.05,
+                        strokeWeight: 2,
+                        zIndex: 1
                     });
                 }
             });
 
-            // 새로운 선택 활성화
+            // Set new active state
             const target = mapMarkers.find(m => m.id === dong.id);
             if(target) {
                 target.element.classList.add('marker-active');
-                target.element.style.zIndex = '100'; // CSS 대신 인라인으로 강제 적용
-                
-                // 폴리곤 강조
+                target.overlay.setZIndex(100);
+
+                // Highlight polygon
                 if (target.polygon) {
                     target.polygon.setOptions({
-                        fillOpacity: 0.35,
-                        strokeWeight: 3
+                        fillOpacity: 0.35, 
+                        strokeWeight: 3,
+                        zIndex: 2
                     });
                 }
             }
 
-            // 지도 중심 이동
-            const moveLatLon = new kakao.maps.LatLng(dong.center.getLat() - 0.003, dong.center.getLng());
+            // Pan map
+            const moveLatLon = new kakao.maps.LatLng(dong.center.lat - 0.003, dong.center.lng);
             map.panTo(moveLatLon);
 
-            // 바텀 시트 업데이트
+            // Update Bottom Sheet Data
             const totalPrice = (dong.basePrice + dong.surge).toLocaleString();
             document.getElementById('detail-title').innerText = dong.name;
             
             const maxPrice = (dong.basePrice + dong.surge + 1500).toLocaleString();
             document.getElementById('detail-price').innerText = `${totalPrice}원 ~ ${maxPrice}원`;
+            document.getElementById('detail-status-text').innerText = dong.status.label;
             
-            // 주문 현황 텍스트 및 색상 업데이트
-            const statusText = document.getElementById('detail-status-text');
-            statusText.innerText = dong.status.label;
-            
-            // 기존 색상 클래스 제거
-            statusText.classList.remove('text-gray-900', 'text-red-600', 'text-orange-600', 'text-blue-600');
-            
-            // 뱃지 로직
             const badge = document.getElementById('detail-badge');
             badge.innerText = dong.status.label;
             
             if(dong.status.id === 'very_busy') {
                 badge.className = "px-3 py-1.5 rounded-md text-xs font-bold bg-red-100 text-red-600";
-                statusText.classList.add('text-red-600'); // 텍스트 색상 동기화
             } else if(dong.status.id === 'busy') {
                 badge.className = "px-3 py-1.5 rounded-md text-xs font-bold bg-orange-100 text-orange-600";
-                statusText.classList.add('text-orange-600'); // 텍스트 색상 동기화
             } else {
                 badge.className = "px-3 py-1.5 rounded-md text-xs font-bold bg-blue-100 text-blue-600";
-                statusText.classList.add('text-blue-600'); // 텍스트 색상 동기화
             }
 
+            // Show Detail View
             document.getElementById('view-overview').classList.add('hidden');
+            document.getElementById('view-mission-detail').classList.add('hidden'); // Close Mission Detail if open
             document.getElementById('view-detail').classList.remove('hidden');
         }
 
@@ -456,30 +557,111 @@
             document.getElementById('view-detail').classList.add('hidden');
             document.getElementById('view-overview').classList.remove('hidden');
             
+            // Reset markers and polygons
             mapMarkers.forEach(m => {
                 m.element.classList.remove('marker-active');
-                m.element.style.zIndex = '';
+                m.overlay.setZIndex(10);
+                
                 if (m.polygon) {
                     m.polygon.setOptions({
-                        fillOpacity: 0.1,
-                        strokeWeight: 2
+                        fillOpacity: 0.05,
+                        strokeWeight: 2,
+                        zIndex: 1
                     });
                 }
             });
             
-            // 줌 아웃
             map.setLevel(6);
         }
 
+        function openMissionDetail() {
+            document.getElementById('view-overview').classList.add('hidden');
+            document.getElementById('view-mission-detail').classList.remove('hidden');
+        }
+
+        function closeMissionDetail() {
+            document.getElementById('view-mission-detail').classList.add('hidden');
+            document.getElementById('view-overview').classList.remove('hidden');
+        }
+
         function resetMap() {
-            map.panTo(new kakao.maps.LatLng(37.5100, 127.0400));
+            if(DONGS.length > 0) {
+                let avgLat = 0, avgLng = 0;
+                DONGS.forEach(d => { avgLat += d.center.lat; avgLng += d.center.lng; });
+                map.panTo(new kakao.maps.LatLng(avgLat / DONGS.length, avgLng / DONGS.length));
+            }
             map.setLevel(6);
             closeDetail();
         }
 
+        function initSheetResize() {
+            const sheet = document.getElementById('bottom-sheet');
+            const handle = document.getElementById('sheet-handle');
+            const recenterBtn = document.getElementById('recenter-btn');
+            
+            let startY, startHeight;
+            let isDragging = false;
+
+            const onTouchStart = (e) => {
+                isDragging = true;
+                startY = e.touches ? e.touches[0].clientY : e.clientY;
+                startHeight = sheet.offsetHeight;
+                sheet.style.transition = 'none';
+                if (recenterBtn) recenterBtn.style.transition = 'none';
+            };
+
+            const onTouchMove = (e) => {
+                if (!isDragging) return;
+                const currentY = e.touches ? e.touches[0].clientY : e.clientY;
+                const deltaY = startY - currentY;
+                const newHeight = startHeight + deltaY;
+
+                // Constraints (min 15vh, max 90vh)
+                const minHeight = window.innerHeight * 0.15;
+                const maxHeight = window.innerHeight * 0.9;
+
+                if (newHeight >= minHeight && newHeight <= maxHeight) {
+                    sheet.style.height = `${newHeight}px`;
+                    if (recenterBtn) recenterBtn.style.bottom = `${newHeight + 20}px`;
+                }
+            };
+
+            const onTouchEnd = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                sheet.style.transition = 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                if (recenterBtn) recenterBtn.style.transition = 'bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                
+                // Snap logic
+                const currentHeight = sheet.offsetHeight;
+                const thresholdSmall = window.innerHeight * 0.25;
+                const thresholdLarge = window.innerHeight * 0.75;
+                let targetHeight;
+
+                if (currentHeight < thresholdSmall) {
+                    targetHeight = window.innerHeight * 0.15; // Minimized
+                } else if (currentHeight > thresholdLarge) {
+                    targetHeight = window.innerHeight * 0.9; // Full
+                } else {
+                    targetHeight = window.innerHeight * 0.35; // Default
+                }
+                
+                sheet.style.height = `${targetHeight}px`;
+                if (recenterBtn) recenterBtn.style.bottom = `${targetHeight + 20}px`;
+            };
+
+            handle.addEventListener('touchstart', onTouchStart);
+            window.addEventListener('touchmove', onTouchMove, { passive: false });
+            window.addEventListener('touchend', onTouchEnd);
+            
+            // Mouse support for desktop testing
+            handle.addEventListener('mousedown', onTouchStart);
+            window.addEventListener('mousemove', onTouchMove);
+            window.addEventListener('mouseup', onTouchEnd);
+        }
+
         function startLiveUpdates() {
-            if (liveUpdateInterval) clearInterval(liveUpdateInterval);
-            liveUpdateInterval = setInterval(() => {
+            setInterval(() => {
                 if (mapMarkers.length === 0) return;
                 
                 const target = mapMarkers[Math.floor(Math.random() * mapMarkers.length)];
@@ -497,7 +679,6 @@
                 else if (newSurge === 0) newStatus = STATUS.QUIET;
                 target.data.status = newStatus;
 
-                // DOM 업데이트
                 const priceEl = document.getElementById(`price-${target.id}`);
                 const badgeEl = document.getElementById(`badge-${target.id}`);
                 const boxEl = document.getElementById(`marker-box-${target.id}`);
@@ -526,6 +707,9 @@
                 }
             }, 2000);
         }
+
+        // Initiate Dynamic Script Loading
+        loadKakaoMaps();
     </script>
 </body>
 </html>
